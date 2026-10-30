@@ -1,1 +1,0 @@
-# Multi-Person-Image-Manager-By-JP
