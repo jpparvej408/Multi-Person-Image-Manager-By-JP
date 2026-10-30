@@ -1,0 +1,285 @@
+
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi Person Image Manager</title>
+<style>
+body {
+  font-family: Arial;
+  background: #101827;
+  color: white;
+  padding: 20px;
+}
+.container { max-width: 700px; margin: auto; }
+h2 { text-align: center; color: #38bdf8; }
+input, button {
+  padding: 12px;
+  margin: 6px 0;
+  border: none;
+  border-radius: 7px;
+}
+input {
+  width: 95%;
+  background: #263449;
+  color: white;
+}
+button {
+  cursor: pointer;
+  background: #0284c7;
+  color: white;
+  font-weight: bold;
+}
+.card {
+  background: #263449;
+  padding: 12px;
+  margin: 12px 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card img {
+  width: 75px;
+  height: 75px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.info { flex: 1; overflow-wrap: anywhere; }
+.edit { background: #d97706; }
+.delete { background: #dc2626; }
+.export { background: #16a34a; }
+#cancelBtn { background: #64748b; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>Multi Person Image Manager By JP</h2>
+
+<input id="personName" placeholder="Person Name">
+<input id="personImage" type="file" accept="image/*">
+
+<button onclick="savePerson()" id="saveBtn">Save Person</button>
+<button onclick="cancelEdit()" id="cancelBtn" style="display:none">
+Cancel Edit
+</button>
+
+<hr>
+
+<input id="search" placeholder="Search by name..."
+oninput="showPeople()">
+
+<button class="export" onclick="exportData()">Export All Data</button>
+
+<button onclick="document.getElementById('importFile').click()">
+Import Data
+</button>
+
+<input id="importFile" type="file" accept=".json"
+style="display:none" onchange="importData(event)">
+
+<h3>Saved Persons</h3>
+<div id="peopleList"></div>
+
+</div>
+
+<script>
+let people = JSON.parse(
+  localStorage.getItem("peopleData") || "[]"
+);
+
+let editingId = null;
+
+function saveData() {
+  localStorage.setItem("peopleData", JSON.stringify(people));
+}
+
+function savePerson() {
+  const name = document.getElementById("personName").value.trim();
+  const file = document.getElementById("personImage").files[0];
+
+  if (!name) {
+    alert("Enter person name!");
+    return;
+  }
+
+  if (file && !file.type.startsWith("image/")) {
+    alert("Select a valid image!");
+    return;
+  }
+
+  if (editingId === null && !file) {
+    alert("Please select an image!");
+    return;
+  }
+
+  function finishSave(image) {
+    if (editingId !== null) {
+      const person = people.find(p => p.id === editingId);
+      if (person) {
+        person.name = name;
+        if (image) person.image = image;
+      }
+      alert("Person Updated Successfully!");
+    } else {
+      people.push({
+        id: Date.now(),
+        name: name,
+        image: image
+      });
+      alert("Person Saved Successfully!");
+    }
+
+    saveData();
+    cancelEdit();
+    showPeople();
+  }
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => finishSave(e.target.result);
+    reader.readAsDataURL(file);
+  } else {
+    finishSave(null);
+  }
+}
+
+function editPerson(id) {
+  const person = people.find(p => p.id === id);
+  if (!person) return;
+
+  editingId = id;
+
+  document.getElementById("personName").value = person.name;
+  document.getElementById("personImage").value = "";
+
+  document.getElementById("saveBtn").textContent = "Update Person";
+  document.getElementById("cancelBtn").style.display = "inline-block";
+
+  window.scrollTo({top: 0, behavior: "smooth"});
+}
+
+function cancelEdit() {
+  editingId = null;
+
+  document.getElementById("personName").value = "";
+  document.getElementById("personImage").value = "";
+
+  document.getElementById("saveBtn").textContent = "Save Person";
+  document.getElementById("cancelBtn").style.display = "none";
+}
+
+function deletePerson(id) {
+  if (confirm("Are you sure you want to delete?")) {
+    people = people.filter(p => p.id !== id);
+    saveData();
+
+    if (editingId === id) cancelEdit();
+
+    showPeople();
+  }
+}
+
+function showPeople() {
+  const list = document.getElementById("peopleList");
+  const search = document.getElementById("search").value.toLowerCase();
+
+  list.innerHTML = "";
+
+  people.filter(p =>
+    p.name.toLowerCase().includes(search)
+  ).forEach(person => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const img = document.createElement("img");
+    img.src = person.image;
+
+    const info = document.createElement("div");
+    info.className = "info";
+
+    const title = document.createElement("b");
+    title.textContent = person.name;
+    info.appendChild(title);
+
+    const edit = document.createElement("button");
+    edit.className = "edit";
+    edit.textContent = "Edit";
+    edit.onclick = () => editPerson(person.id);
+
+    const del = document.createElement("button");
+    del.className = "delete";
+    del.textContent = "Delete";
+    del.onclick = () => deletePerson(person.id);
+
+    card.append(img, info, edit, del);
+    list.appendChild(card);
+  });
+}
+
+function exportData() {
+  const blob = new Blob(
+    [JSON.stringify(people, null, 2)],
+    {type: "application/json"}
+  );
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "people-backup.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      if (!Array.isArray(data) ||
+          !data.every(p =>
+            p &&
+            typeof p.name === "string" &&
+            typeof p.image === "string" &&
+            typeof p.id === "number"
+          )) {
+        throw new Error("Invalid data");
+      }
+
+      const ids = new Set(people.map(p => p.id));
+
+      data.forEach(p => {
+        if (ids.has(p.id)) {
+          p.id = Date.now() + Math.random();
+        }
+        ids.add(p.id);
+      });
+
+      people.push(...data);
+      saveData();
+      showPeople();
+      alert("Import Successful!");
+
+    } catch {
+      alert("Invalid JSON File!");
+    }
+
+    event.target.value = "";
+  };
+
+  reader.readAsText(file);
+}
+
+showPeople();
+</script>
+</body>
+</html>
